@@ -1,5 +1,6 @@
 from datetime import datetime
 from airflow import DAG
+from airflow.operators.bash_operator import BashOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python_operator import PythonOperator, BranchPythonOperator
 
@@ -32,6 +33,10 @@ for val in config:
         def isExistDatabase():
             return "ExistOperator" if isExistDatabase else "DoesNotExistOperator"
 
+        print_user = BashOperator(
+            task_id='PrintUser',
+            bash_command='echo $USER'
+        )
 
         print_start_process = PythonOperator(
             task_id='DatabaseConnection',
@@ -48,7 +53,7 @@ for val in config:
         exist_operator = DummyOperator(task_id='ExistOperator')
         does_not_exist_operator = DummyOperator(task_id='DoesNotExistOperator')
 
-        print_start_process >> branch_database_exist_operator >> [exist_operator, does_not_exist_operator]
+        print_start_process >> print_user >> branch_database_exist_operator >> [exist_operator, does_not_exist_operator]
         exist_operator >> insert_new_row >> query_the_table
         does_not_exist_operator >> insert_new_row >> query_the_table
 
