@@ -1,7 +1,7 @@
 from datetime import datetime
 from airflow import DAG
 from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.python_operator import PythonOperator
+from airflow.operators.python_operator import PythonOperator, BranchPythonOperator
 
 config = {
     'dag_id_4': {'owner': 'Andrey Saprykin',
@@ -18,6 +18,7 @@ config = {
 }
 
 database = 'someSchema'
+isExistDatabase = True
 
 for val in config:
 
@@ -28,13 +29,27 @@ for val in config:
         def pythonOperationCallable(table):
             return val + ' start processing table : ' + table + ', in database : ' + database
 
-        t1 = PythonOperator(
+        def isExistDatabase():
+            return "ExistOperator" if isExistDatabase else "DoesNotExistOperator"
+
+
+        print_start_process = PythonOperator(
             task_id='DatabaseConnection',
             python_callable=pythonOperationCallable,
             op_kwargs={'table': conf.get('table_name')}
         )
-        insert_new_row = DummyOperator(task_id='InsertNewRow')
+        insert_new_row = DummyOperator(task_id='InsertNewRow', trigger_rule='all_done')
         query_the_table = DummyOperator(task_id='QueryTheTable')
 
-        t1 >> insert_new_row >> query_the_table
+        branch_database_exist_operator = BranchPythonOperator(
+            task_id="checkDatabaseExist",
+            python_callable=isExistDatabase
+        )
+        exist_operator = DummyOperator(task_id='ExistOperator')
+        does_not_exist_operator = DummyOperator(task_id='DoesNotExistOperator')
+
+        print_start_process >> branch_database_exist_operator >> [exist_operator, does_not_exist_operator]
+        exist_operator >> insert_new_row >> query_the_table
+        does_not_exist_operator >> insert_new_row >> query_the_table
+
         globals()[val] = dag
