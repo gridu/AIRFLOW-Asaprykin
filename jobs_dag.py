@@ -47,7 +47,7 @@ for val in config:
         query_the_table = DummyOperator(task_id='QueryTheTable')
 
         branch_database_exist_operator = BranchPythonOperator(
-            task_id="checkDatabaseExist",
+            task_id="CheckDatabaseExist",
             python_callable=isExistDatabase
         )
         exist_operator = DummyOperator(task_id='ExistOperator')
