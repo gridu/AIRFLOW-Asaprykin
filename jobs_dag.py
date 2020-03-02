@@ -1,5 +1,6 @@
 from datetime import datetime
 from airflow import DAG
+from airflow.models import Variable
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python_operator import PythonOperator, BranchPythonOperator
@@ -27,8 +28,13 @@ for val in config:
 
     with DAG(val, default_args=conf, schedule_interval=conf.get('schedule_interval', None)) as dag:
 
-        def pythonOperationCallable(table):
+        def pythonOperationCallable(table, **context):
+            Variable.set(key="execution_date_jobs", value=context['execution_date'])
             return val + ' start processing table : ' + table + ', in database : ' + database
+
+        def sendTimeToXCom(**context):
+            # return f"{context['run_id']} ended" # -- print only tasks id
+            return f"{context}" # -- print whole context of task
 
         def isExistDatabase():
             return "ExistOperator" if isExistDatabase else "DoesNotExistOperator"
@@ -41,10 +47,15 @@ for val in config:
         print_start_process = PythonOperator(
             task_id='DatabaseConnection',
             python_callable=pythonOperationCallable,
+            provide_context=True,
             op_kwargs={'table': conf.get('table_name')}
         )
         insert_new_row = DummyOperator(task_id='InsertNewRow', trigger_rule='all_done')
-        query_the_table = DummyOperator(task_id='QueryTheTable')
+        query_the_table = PythonOperator(
+            task_id='QueryTheTable',
+            python_callable=sendTimeToXCom,
+            provide_context=True
+        )
 
         branch_database_exist_operator = BranchPythonOperator(
             task_id="CheckDatabaseExist",
