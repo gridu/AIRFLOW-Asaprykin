@@ -8,6 +8,7 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python_operator import PythonOperator, BranchPythonOperator
 from airflow.operators.postgres_operator import PostgresOperator
+from airflow.operators.postgresql_count_row import PostgreSQLCountRows
 
 config = {
     'dag_id_4': {'owner': 'Andrey Saprykin',
@@ -84,10 +85,9 @@ for val in config:
             """
         )
 
-        query_the_table = PythonOperator(
+        query_the_table = PostgreSQLCountRows(
             task_id='QueryTheTable',
-            python_callable=sendTimeToXCom,
-            op_kwargs={'table': table_name}
+            table_name=table_name
         )
 
         print_start_process >> print_user >> branch_database_exist_operator >>\
