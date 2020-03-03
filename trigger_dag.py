@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from airflow import DAG
 from airflow.contrib.sensors.file_sensor import FileSensor
@@ -8,7 +8,6 @@ from airflow.operators.dagrun_operator import TriggerDagRunOperator
 from airflow.operators.subdag_operator import SubDagOperator
 from airflow.sensors.external_task_sensor import ExternalTaskSensor
 from airflow.operators.python_operator import PythonOperator
-from pendulum import Pendulum
 
 default_attributes = {
     "owner": "Andrey Saprykin",
@@ -20,13 +19,11 @@ external_dag_id = "dag_id_4"
 docker_path = "/usr/local/airflow/dags/"
 
 with DAG("sensor_dag", default_args=default_attributes, schedule_interval=None) as dag:
-
     def create_sub_dag(parent_dag_name, child_dag_name, start_date, schedule_interval):
-
         sub_dag = DAG(parent_dag_name + "." + child_dag_name, schedule_interval=schedule_interval,
                     start_date=start_date)
 
-        def printResult(**context):
+        def print_result(**context):
             return context['task_instance'].xcom_pull(task_ids='QueryTheTable', dag_id=external_dag_id, key=None)
 
         external_task_sensor = ExternalTaskSensor(
@@ -39,7 +36,7 @@ with DAG("sensor_dag", default_args=default_attributes, schedule_interval=None) 
         print_result_external_task = PythonOperator(
             task_id="GetXComInformation",
             dag=sub_dag,
-            python_callable=printResult,
+            python_callable=print_result,
             provide_context=True
         )
 
