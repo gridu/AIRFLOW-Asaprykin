@@ -26,7 +26,6 @@ config = {
 
 database = 'airflow'
 schema = 'public'
-isExistDatabase = True
 hook = PostgresHook()
 
 for val in config:
@@ -61,16 +60,20 @@ for val in config:
             task_id="CheckDatabaseExist",
             python_callable=isExistDatabase,
             op_kwargs={
-                'table_query': f"SELECT * FROM information_schema.tables "
-                               f"WHERE table_schema = '{schema}'"
-                               f"AND table_name = '{table_name}'"},
+                'table_query': f"""
+                    SELECT * FROM information_schema.tables 
+                        WHERE table_schema = '{schema}'
+                    AND table_name = '{table_name}'
+            """},
         )
 
         exist_operator = DummyOperator(task_id='ExistOperator')
         does_not_exist_operator = PostgresOperator(
             task_id='DoesNotExistOperator',
-            sql=f"CREATE TABLE {table_name }(custom_id integer NOT NULL,"
-                "user_name VARCHAR (50) NOT NULL, timestamp TIMESTAMP NOT NULL);"
+            sql=f"""
+                    CREATE TABLE {table_name}(custom_id integer NOT NULL, 
+                    user_name VARCHAR (50) NOT NULL, timestamp TIMESTAMP NOT NULL);
+                """
         )
 
         insert_new_row = PostgresOperator(
@@ -78,9 +81,9 @@ for val in config:
             trigger_rule='all_done',
             sql=f"""
                 INSERT INTO {table_name} VALUES(
-                {uuid.uuid4().int & (1<<16)-1},
-                '{{{{task_instance.xcom_pull(task_ids='PrintUser')}}}}',
-                CURRENT_TIMESTAMP 
+                    {uuid.uuid4().int & (1 << 16) - 1},
+                    '{{{{task_instance.xcom_pull(task_ids='PrintUser')}}}}',
+                    CURRENT_TIMESTAMP 
                 )
             """
         )
@@ -90,10 +93,11 @@ for val in config:
             table_name=table_name
         )
 
-        print_start_process >> print_user >> branch_database_exist_operator >>\
-        [exist_operator, does_not_exist_operator]
-
-        exist_operator >> insert_new_row >> query_the_table
-        does_not_exist_operator >> insert_new_row >> query_the_table
+        print_start_process >> \
+            print_user >> \
+            branch_database_exist_operator >> \
+            [exist_operator, does_not_exist_operator] >> \
+            insert_new_row >> \
+            query_the_table
 
         globals()[val] = dag

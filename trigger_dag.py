@@ -14,14 +14,15 @@ default_attributes = {
     "start_date": datetime(2018, 1, 1)
 }
 
-folder = Variable.get('PathToRunFile') or ''
+folder = Variable.get('PathToRunFile', '')
 external_dag_id = "dag_id_4"
-docker_path = "/usr/local/airflow/dags/"
+docker_path = "/usr/local/airflow/dags"
 
 with DAG("sensor_dag", default_args=default_attributes, schedule_interval=None) as dag:
-    def create_sub_dag(parent_dag_name, child_dag_name, start_date, schedule_interval):
-        sub_dag = DAG(parent_dag_name + "." + child_dag_name, schedule_interval=schedule_interval,
-                    start_date=start_date)
+    def create_sub_dag(parent_dag_name, child_dag_name, start_date, schedule_interval=None):
+        name = parent_dag_name + "." + child_dag_name
+
+        sub_dag = DAG(name, schedule_interval=schedule_interval, start_date=start_date)
 
         def print_result(**context):
             return context['task_instance'].xcom_pull(task_ids='QueryTheTable', dag_id=external_dag_id, key=None)
@@ -43,23 +44,26 @@ with DAG("sensor_dag", default_args=default_attributes, schedule_interval=None) 
         bash_remove_operator = BashOperator(
             task_id="RemoveFolder",
             dag=sub_dag,
-            bash_command=f"rm {docker_path}{folder}run"
+            bash_command=f"rm {docker_path}/{folder}/run"
         )
 
         create_file = BashOperator(
             task_id="CreateFile",
             dag=sub_dag,
-            bash_command=f"touch {docker_path}{folder}finished_{{{{ ts_nodash }}}}"
+            bash_command=f"touch {docker_path}/{folder}/finished_{{{{ ts_nodash }}}}"
         )
 
-        external_task_sensor >> print_result_external_task >> bash_remove_operator >> create_file
+        external_task_sensor >> \
+            print_result_external_task >> \
+            bash_remove_operator >> \
+            create_file
 
         return sub_dag
 
     file_sensor = FileSensor(
         task_id="FileSensor",
         poke_interval=3,
-        filepath=folder + "run"
+        filepath=f"{folder}/run"
     )
 
     trigger_dag_operator = TriggerDagRunOperator(
@@ -70,7 +74,7 @@ with DAG("sensor_dag", default_args=default_attributes, schedule_interval=None) 
 
     sub_dag_operator = SubDagOperator(
         task_id="SubDag",
-        subdag=create_sub_dag(dag.dag_id, "SubDag", default_attributes.get("start_date"), None)
+        subdag=create_sub_dag(dag.dag_id, "SubDag", default_attributes.get("start_date"))
     )
 
     file_sensor >> trigger_dag_operator >> sub_dag_operator
